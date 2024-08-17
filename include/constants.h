@@ -21,7 +21,7 @@ constexpr double yr_to_sec = 3.15576e7;
 
 constexpr double pi = 3.14159265359;
 constexpr double mSol = 1.9891e33;            // [g]
-constexpr double c_speed = 299794245800;      // [cm/s]
+constexpr double c_speed = 29979245800;      // [cm/s]
 constexpr double el_charge = 4.80320427e-10;  // [esu]
 constexpr double eRadius = 2.8179e-13;
 constexpr double hp = 6.62606896e-27;

@@ -1,4 +1,5 @@
 #include "RadData.h"
+#include <gsl/gsl_spline.h>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -8,11 +9,15 @@
 
 CRad::RadData::RadData() {
     electron_distribution = Eigen::MatrixX2d::Zero(0, 2);
-    electron_distribution_log = Eigen::MatrixX2d::Zero(0, 2);
     proton_distribution = Eigen::MatrixX2d::Zero(0, 2);
     B_field = 0.0;
 }
 
+CRad::RadData::~RadData() {
+    target_photons_density_log_.clear();
+    target_photons_energy_log_.clear();
+    target_photons.clear();
+}
 void CRad::RadData::SetElectronDis(const Eigen::VectorXd& energy,
                                    const Eigen::VectorXd& density) {
     if (energy.size() != density.size()) {
@@ -27,15 +32,28 @@ void CRad::RadData::SetElectronDis(const Eigen::VectorXd& energy,
     electron_distribution.col(0) = energy;
     electron_distribution.col(1) = density;
 
-    electron_distribution_log.resize(energy.size(), 2);
-    electron_distribution_log.col(0) = energy.array().log10();
-    electron_distribution_log.col(1) = density.array().log10();
+    electron_energy_log_ = energy.array().log10();
+    electron_density_log_ = density.array().log10();
+
+    electron_interpolate = std::make_unique<GSLInterpData>(
+        electron_energy_log_, electron_density_log_);
 }
-double CRad::RadData::GetElectronDensity(double energy)
-{
-    return pow(10,Utils::interpolate(electron_distribution_log.col(0), electron_distribution_log.col(1), std::log10(energy)));
+double CRad::RadData::GetElectronDensity(double energy) {
+    double log_energy = std::log10(energy);
+    if (log_energy > electron_energy_log_.maxCoeff() ||
+        log_energy < electron_energy_log_.minCoeff()) {
+        return 0;
+    }
+    double log10_res = gsl_spline_eval(electron_interpolate->spline, log_energy,
+                                       electron_interpolate->acc);
+    return pow(10, log10_res);
 }
-    
+std::pair<double, double> CRad::RadData::GetMinMaxElectronEnergy() {
+    double min_energy = electron_distribution.col(0).minCoeff();
+    double max_energy = electron_distribution.col(0).maxCoeff();
+    return std::make_pair(min_energy, max_energy);
+}
+
 void CRad::RadData::SetProtonDis(const Eigen::VectorXd& energy,
                                  const Eigen::VectorXd& density) {
     if (energy.size() != density.size()) {
@@ -48,12 +66,21 @@ void CRad::RadData::SetProtonDis(const Eigen::VectorXd& energy,
     proton_distribution.col(1) = energy;
     proton_distribution.col(2) = density;
 }
+void CRad::RadData::AddTargetPhotons(const Eigen::VectorXd& energy,
+                                     const Eigen::VectorXd& density) {
+    Eigen::MatrixX2d photon_distribution(energy.size(), 2);
+    Eigen::MatrixX2d photon_distribution_log(energy.size(), 2);
+    photon_distribution.col(0) = energy;
+    photon_distribution.col(1) = density;
+    target_photons.push_back(std::move(photon_distribution));
+}
 void CRad::RadData::AddThermalTargetPhotons(const double temperture, int bins,
                                             double energy_density) {
     double low_boundary = constants::kb * temperture * 1e-12;
-    double high_boundary = constants::kb * temperture * 1e6;
+    double high_boundary = constants::kb * temperture * 1e2;
 
     auto energy = Utils::GetLogspaceVec(low_boundary, high_boundary, bins);
+
     Eigen::VectorXd density;
     if (energy_density > 0) {
         density = Utils::GreyBody(energy, temperture, energy_density);
@@ -63,26 +90,37 @@ void CRad::RadData::AddThermalTargetPhotons(const double temperture, int bins,
     Eigen::MatrixX2d thermal_photons(energy.size(), 2);
     thermal_photons.col(0) = energy;
     thermal_photons.col(1) = density;
+    /* precompute the log10 version */
+    Eigen::VectorXd energy_log10 = energy.array().log10();
+    Eigen::VectorXd density_log10 = density.array().log10();
 
+    target_photons_energy_log_.push_back(std::move(energy_log10));
+    target_photons_density_log_.push_back(std::move(density_log10));
     target_photons.push_back(std::move(thermal_photons));
+
+    target_photons_interpolate.push_back(std::make_unique<GSLInterpData>(
+        target_photons_energy_log_.back(), target_photons_density_log_.back()));
 }
 
 Eigen::VectorXd CRad::RadData::GetPhotonDensity(double energy) {
     Eigen::VectorXd res(target_photons.size());
-    int index = 0;
-    for (const auto& photon_dis : target_photons) {
-        Eigen::VectorXd x = photon_dis.col(0).array().log10();
-        Eigen::VectorXd y = photon_dis.col(1).array().log10();
-        res[index++] = pow(10, Utils::interpolate(x, y, std::log10(energy)));
+    double log_energy = std::log10(energy);
+    for (auto index = 0; index < target_photons.size(); ++index) {
+        if (log_energy > target_photons_energy_log_[index].maxCoeff() ||
+            energy < target_photons_energy_log_[index].minCoeff()) {
+            res[index] = 0;
+        } else {
+            res[index] = pow(
+                10, target_photons_interpolate[index]->Interpolate(log_energy));
+        }
     }
     return res;
 }
-double CRad::RadData::GetSumPhotonDensity(double energy)
-{
+double CRad::RadData::GetSumPhotonDensity(double energy) {
     auto res = GetPhotonDensity(energy);
     return res.sum();
 }
-std::pair<double, double> CRad::RadData::GetMinMaxTargetEnergy() {
+std::pair<double, double> CRad::RadData::GetMaxMinTargetEnergy() {
     double max_v = 0;
     double min_v = 1e8;
 

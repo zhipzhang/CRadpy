@@ -5,7 +5,7 @@
 #include "constants.h"
 
 double CRad::InverseCompton::emissivity_(double epsilon, double electron_energy,
-                                         double epsilon_prime) {
+                                         double epsilon_prime) const {
     double lorentz = electron_energy / constants::m_e;
     double e1 = epsilon_prime / electron_energy;  // E_1 in Eq<2.47>
     double Gamma = 4 * epsilon * lorentz / constants::m_e;
@@ -30,13 +30,13 @@ double CRad::InverseCompton::emissivity_(double epsilon, double electron_energy,
     return integrand;
 }
 double CRad::InverseCompton::InverseCompton::emissivity_photon_integrated_sum(
-    double electron_energy, double epsilon_prime) {
+    double electron_energy, double epsilon_prime) const {
     double lorentz = electron_energy / constants::m_e;
     double E_1 = epsilon_prime / electron_energy;
     double up_bound = epsilon_prime / (1 - E_1);
     double low_bound = up_bound / (4 * lorentz * lorentz);
 
-    auto energy_range = dat.GetMinMaxTargetEnergy();
+    auto energy_range = dat.GetMaxMinTargetEnergy();
     up_bound = up_bound > energy_range.first ? energy_range.first : up_bound;
     low_bound =
         low_bound < energy_range.second ? energy_range.second : low_bound;
@@ -53,17 +53,16 @@ double CRad::InverseCompton::InverseCompton::emissivity_photon_integrated_sum(
     low_bound = log10(low_bound);
     auto f = [&](double x) -> double {
         return dat.GetSumPhotonDensity(pow(10, x)) *
-               emissivity_(x, electron_energy, epsilon_prime);
+               emissivity_(pow(10, x), electron_energy, epsilon_prime);
     };
-
     double res = Utils::integrate_1d(f, low_bound, up_bound);
     return res;
 }
-double CRad::InverseCompton::differential_emission(double epsilon_prime) {
-    auto electron_energy_range = dat.GetMinMaxElectronEnerg();
+double CRad::InverseCompton::differential_emission(double epsilon_prime) const {
+    auto electron_energy_range = dat.GetMinMaxElectronEnergy();
     double min_energy = electron_energy_range.first;
     double max_energy = electron_energy_range.second;
-    if (epsilon_prime > electron_energy_range.first) {
+    if (epsilon_prime > max_energy) {
         return 0;
     }
     if (epsilon_prime > min_energy) {
@@ -79,7 +78,7 @@ double CRad::InverseCompton::differential_emission(double epsilon_prime) {
 }
 
 Eigen::VectorXd CRad::InverseCompton::CalculateDifferentialSpectrum(
-    const Eigen::Ref<const Eigen::VectorXd>& epsilon_prime) {
+    const Eigen::Ref<const Eigen::VectorXd>& epsilon_prime) const {
     Eigen::VectorXd differential_spectrum(epsilon_prime.size());
 #pragma omp parallel for
     for (int i = 0; i < epsilon_prime.size(); i++) {

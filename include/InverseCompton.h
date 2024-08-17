@@ -12,9 +12,9 @@ class InverseCompton {
             std::bind(&InverseCompton::emissivity_, this, std::placeholders::_1,
                       std::placeholders::_2, std::placeholders::_3);
     };
-    void initialize_kernel();
+
     Eigen::VectorXd CalculateDifferentialSpectrum(
-        const Eigen::Ref<const Eigen::VectorXd>& epsilon_prime);
+        const Eigen::Ref<const Eigen::VectorXd>& epsilon_prime) const;
 
    private:
     //------------------------------------------------------------------------
@@ -28,20 +28,23 @@ class InverseCompton {
     //! @return        emissivity: dN(E_e, E_photon)/dt/depsilon_prime
     //------------------------------------------------------------------------
     double emissivity_(double epsilon, double electron_energy,
-                       double epsilon_prime);
+                       double epsilon_prime) const;
 
     //------------------------------------------------------------------------
     //! Integrated emissivity over target photon distribution.
     //!
-    //! @return        return_description
+    //! @return        integration on the target photon distribution
     //------------------------------------------------------------------------
     double emissivity_photon_integrated_sum(double electron_energy,
-                                            double epsilon_prime);
-    double differential_emission(double epsilon_prime);
+                                            double epsilon_prime) const;
+    //------------------------------------------------------------------------
+    //! Integrated over electron distribution
+    //!
+    //! @param epsilon_prime     scattered photon energy [erg]
+    //! @return        dN/dt/d(epsilon_prime)  [s^-1 erg^-1]
+    //------------------------------------------------------------------------
+    double differential_emission(double epsilon_prime) const;
 
-    std::vector<Eigen::MatrixXd> ic_spec_kernel;
-    /* Kernel to compute the energy loss term  i: electron_energy j: photon_energy*/
-    Eigen::MatrixXd ic_loss_kernel;
     RadData& dat;
     std::function<double(double, double, double)> emissivity;
 };
