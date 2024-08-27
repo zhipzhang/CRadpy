@@ -28,8 +28,27 @@ void Radiation::CalculateDifferentialSpectrum(
     PhotonOutEnergy_ = epsilon_prime;
     if (radiation_data_->HaveElectron()) {
         if (radiation_data_->HaveTargetPhotons()) {
-            radiation_mechanism_.emplace_back(
+             radiation_mechanism_.emplace_back(
                 std::in_place_type<InverseCompton>, *radiation_data_);
+            differential_spectrum.emplace_back(Eigen::VectorXd::Zero(size));
+        }
+        if( radiation_data_->GetB_Field() > 0)
+        {
+            auto& synchrontron = radiation_mechanism_.emplace_back(std::in_place_type<Synchrontron>, *radiation_data_);
+            if(Syn_approx_)
+            {
+                std::get<Synchrontron>(synchrontron).SetApproxEmissivity();
+            }
+            differential_spectrum.emplace_back(Eigen::VectorXd::Zero(size));
+        }
+    }
+    if(radiation_data_->HaveProton())
+    {
+        if(radiation_data_->GetB_Field() > 0)
+        {
+            auto& proton_syn = radiation_mechanism_.emplace_back(std::in_place_type<ProtonSynchrotron>, *radiation_data_);
+            if( Syn_approx_)
+                std::get<ProtonSynchrotron>(proton_syn).SetApproxEmissivity();
             differential_spectrum.emplace_back(Eigen::VectorXd::Zero(size));
         }
     }

@@ -15,6 +15,15 @@ class RadData {
    public:
     RadData();
     ~RadData();
+
+    double GetB_Field()
+    {
+        return B_field;
+    }
+    void SetB_Field(double B)
+    {
+        B_field  = B;
+    }
     bool HaveTargetPhotons() {
         if (target_photons.size() > 0) {
             return true;
@@ -28,16 +37,24 @@ class RadData {
         }
         return false;
     }
-
+    bool HaveProton()
+    {
+        if(proton_distribution.rows() > 0)
+        {
+            return true;
+        }
+        return false;
+    }
     /* Set the spectra of electron:  array of energy[erg], array of number density[erg^-1]*/
-    void SetElectronDis(const Eigen::VectorXd& energy,
-                        const Eigen::VectorXd& density);
+    void SetElectronDis(const Eigen::VectorXd& energy, const Eigen::VectorXd& density);
 
     /* return the max/min energy of electron spectra */
     std::pair<double, double> GetMinMaxElectronEnergy();
 
     double GetElectronDensity(double energy);
 
+    std::pair<double, double> GetMinMaxProtonEnergy();
+    double GetProtonDensity(double energy);
     /* Set the spectra of proton:  array of energy[erg], array of number density[erg^-1]*/
     void SetProtonDis(const Eigen::VectorXd& energy,
                       const Eigen::VectorXd& density);
@@ -51,6 +68,7 @@ class RadData {
                                  double energy_density = 0);
 
     std::pair<double, double> GetMaxMinTargetEnergy();
+
 
     /* return a VectorXd of multiple components photon density  energy[erg]*/
     Eigen::VectorXd GetPhotonDensity(double energy);
@@ -72,9 +90,14 @@ class RadData {
     bool verbose = 0;
 
    private:
+
     Eigen::VectorXd electron_energy_log_;
+    Eigen::VectorXd proton_energy_log_;
     Eigen::VectorXd electron_density_log_;
+    Eigen::VectorXd proton_density_log_;
+
     std::unique_ptr<GSLInterpData> electron_interpolate;
+    std::unique_ptr<GSLInterpData> proton_interpolate;
     std::vector<std::unique_ptr<GSLInterpData>> target_photons_interpolate;
     std::vector<Eigen::VectorXd> target_photons_energy_log_;
     std::vector<Eigen::VectorXd> target_photons_density_log_;

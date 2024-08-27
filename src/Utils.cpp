@@ -17,12 +17,12 @@ Eigen::VectorXd CRad::Utils::GetLogspaceVec(double start, double end, int num) {
 Eigen::VectorXd CRad::Utils::BlackBody(
     const Eigen::Ref<const Eigen::MatrixXd>& energy, double temperture) {
     auto nv = energy.array() / constants::hp;
+    Eigen::ArrayXd exp_part = exp(energy.array()/(constants::kb * temperture)) - 1;
     Eigen::ArrayXd deno =
-        pow(constants::c_speed, 3) *
-        exp(energy.array() / (constants::kb * temperture) - 1);
+        pow(constants::c_speed, 3) * exp_part;
     Eigen::ArrayXd numerator = 8 * constants::pi / constants::hp * pow(nv, 2);
     /* Assure all element is greater than 0 */
-    Eigen::ArrayXd result = (deno.inverse() * numerator).max(1e-150);
+    Eigen::ArrayXd result = (deno.inverse() * numerator).max(1e-243);
     return result.matrix();
 }
 

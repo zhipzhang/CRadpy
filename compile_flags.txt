@@ -13,4 +13,6 @@ c++
 /home/zhipz/Projects/CRadpy/external/nanobind/include/
 -I
 /usr/include/python3.11/
+-I
+/home/zhipz/Projects/CRadpy/external/googletest/googletest/include/
 

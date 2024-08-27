@@ -5,7 +5,8 @@ set(SOURCES
     InverseCompton.cpp 
     RadData.cpp 
     Radiation.cpp 
-    Utils.cpp) 
+    Utils.cpp
+    Synchrotron.cpp) 
 add_library(RadiationLib SHARED ${SOURCES})
 target_link_libraries(RadiationLib PUBLIC Eigen3::Eigen GSL::gsl)
 target_include_directories(RadiationLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} /../ include)

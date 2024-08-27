@@ -1,11 +1,13 @@
 #include "RadData.h"
 #include <gsl/gsl_spline.h>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 #include "Eigen/Core"
 #include "Utils.h"
 #include "constants.h"
+#include <iostream>
 
 CRad::RadData::RadData() {
     electron_distribution = Eigen::MatrixX2d::Zero(0, 2);
@@ -28,12 +30,23 @@ void CRad::RadData::SetElectronDis(const Eigen::VectorXd& energy,
     if (verbose) {
         // print some info;
     }
+    // For negative energy, program exit
+    if( (energy.array() <= 0).any() )
+    {
+        throw std::runtime_error("Have nagetive Energy! Program Exit");
+    }
+    if((density.array() <= 0).any())
+    {
+        std::cout << "Warning: the density have zero or negative numver !" << std::endl;
+    }
+    Eigen::VectorXd positive_density = density.array().max(1e-240);
+    // In order to get rid of the situation, density have 0.0
     electron_distribution.resize(energy.size(), 2);
     electron_distribution.col(0) = energy;
-    electron_distribution.col(1) = density;
+    electron_distribution.col(1) = positive_density;
 
     electron_energy_log_ = energy.array().log10();
-    electron_density_log_ = density.array().log10();
+    electron_density_log_ = positive_density.array().log10();
 
     electron_interpolate = std::make_unique<GSLInterpData>(
         electron_energy_log_, electron_density_log_);
@@ -62,10 +75,43 @@ void CRad::RadData::SetProtonDis(const Eigen::VectorXd& energy,
     if (verbose) {
         //
     }
+    if( (energy.array() <= 0).any() )
+    {
+        throw std::runtime_error("Have nagetive Energy! Program Exit");
+    }
+    if((density.array() <= 0).any())
+    {
+        std::cout << "Warning: the density have zero or negative numver !" << std::endl;
+    }
+    Eigen::VectorXd positive_density = density.array().max(1e-240);
     proton_distribution.resize(energy.size(), 2);
-    proton_distribution.col(1) = energy;
-    proton_distribution.col(2) = density;
+    proton_distribution.col(0) = energy;
+    proton_distribution.col(1) = positive_density;
+    proton_energy_log_ = energy.array().log10();
+    proton_density_log_ = positive_density.array().log10();
+    proton_interpolate  = std::make_unique<GSLInterpData>(proton_energy_log_, proton_density_log_);
 }
+
+//TODO: Exists a lof of repeated code!!! need fix
+double CRad::RadData::GetProtonDensity(double energy)
+{
+    double log_energy = std::log10(energy);
+    if( log_energy > proton_energy_log_.maxCoeff() ||
+            log_energy < proton_energy_log_.minCoeff())
+    {
+        return 0;
+    }
+    double log10_res = proton_interpolate->Interpolate(log_energy);
+    return pow(10, log10_res);
+}
+
+std::pair<double, double> CRad::RadData::GetMinMaxProtonEnergy()
+{
+    double min_energy = proton_distribution.col(0).minCoeff();
+    double max_energy = proton_distribution.col(0).maxCoeff();
+    return std::make_pair(min_energy, max_energy);
+}
+
 void CRad::RadData::AddTargetPhotons(const Eigen::VectorXd& energy,
                                      const Eigen::VectorXd& density) {
     Eigen::MatrixX2d photon_distribution(energy.size(), 2);
@@ -77,7 +123,7 @@ void CRad::RadData::AddTargetPhotons(const Eigen::VectorXd& energy,
 void CRad::RadData::AddThermalTargetPhotons(const double temperture, int bins,
                                             double energy_density) {
     double low_boundary = constants::kb * temperture * 1e-12;
-    double high_boundary = constants::kb * temperture * 1e2;
+    double high_boundary = constants::kb * temperture * 1e4;
 
     auto energy = Utils::GetLogspaceVec(low_boundary, high_boundary, bins);
 
@@ -107,7 +153,7 @@ Eigen::VectorXd CRad::RadData::GetPhotonDensity(double energy) {
     double log_energy = std::log10(energy);
     for (auto index = 0; index < target_photons.size(); ++index) {
         if (log_energy > target_photons_energy_log_[index].maxCoeff() ||
-            energy < target_photons_energy_log_[index].minCoeff()) {
+            log_energy < target_photons_energy_log_[index].minCoeff()) {
             res[index] = 0;
         } else {
             res[index] = pow(
